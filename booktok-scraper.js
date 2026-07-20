@@ -2,7 +2,8 @@
 /**
  * booktok-scraper.js
  *
- * Scrapes specific Instagram hashtags and accounts via Apify, then uses
+ * Scrapes specific Instagram hashtags/accounts AND specific subreddits via
+ * Apify (two different actors, one pipeline), then uses
  * Claude to extract structured book mentions from each post \u2014 from the
  * caption text, and from cover art / screenshots / text overlays in images
  * \u2014 producing a JSON file in the same shape as the app's CURATED_DATASET:
@@ -62,7 +63,19 @@ const ACCOUNTS = [
   // add specific account usernames here, no @ symbol
 ];
 
-const RESULTS_PER_TARGET = 10; // posts to pull per hashtag/account
+// Same subreddits already used for the app's Reddit search links.
+const SUBREDDITS = [
+  'booktokreddit', 'darkromance', 'reverseharem', 'romancebooks', 'romantasy',
+  'sciencefictionromance', 'spicyromancebooks', 'fantasyromance', 'paranormalromance',
+  'bookrecommendations', 'bookstagram', 'booksuggestions', 'bookreviewers',
+  'suggestmeabook', 'recommend_a_book', 'bookclub', 'findabook', 'pdfbooks',
+  'books', 'bookdiscussions', 'whatsthatbook', 'booksthatfeellikethis',
+  'thrillerbooks', 'weirdgirlliterature', 'readingsuggestions', 'mysterybooks',
+];
+const ENABLE_REDDIT = true; // set to false to skip Reddit and only scrape Instagram
+const REDDIT_POSTS_PER_SUB = 2; // TEMPORARY for testing \u2014 bump back up to 10+ before real runs
+
+const RESULTS_PER_TARGET = 2; // TEMPORARY for testing \u2014 bump back up to 10+ before real runs
 const MAX_IMAGES_PER_POST = 3; // cap on images sent to Claude vision per post (cost control)
 const CONCURRENCY = 5; // how many posts to process at once \u2014 higher is faster but risks API rate limits
 
@@ -97,6 +110,42 @@ async function scrapeInstagram() {
   }
 
   return res.json();
+}
+
+// ---- Step 1b: scrape via Apify's Reddit Scraper actor (harshmaur/reddit-scraper) ----
+// Normalizes Reddit posts into the same { caption, displayUrl } shape the
+// extraction step already expects, so both sources share one pipeline.
+async function scrapeReddit() {
+  if (!ENABLE_REDDIT) return [];
+  if (!SUBREDDITS.length) return [];
+
+  console.log(`Scraping ${SUBREDDITS.length} subreddit(s) via Apify...`);
+
+  const res = await fetch(
+    `https://api.apify.com/v2/acts/harshmaur~reddit-scraper/run-sync-get-dataset-items?token=${APIFY_TOKEN}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        startUrls: SUBREDDITS.map(s => ({ url: `https://www.reddit.com/r/${s}/` })),
+        maxPostsCount: REDDIT_POSTS_PER_SUB,
+        crawlCommentsPerPost: false,
+        proxy: { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] }
+      })
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Apify Reddit request failed: ${res.status} ${await res.text()}`);
+  }
+
+  const posts = await res.json();
+  return posts
+    .filter(p => p.dataType === 'post' || p.title) // skip any non-post items in the results
+    .map(p => ({
+      caption: [p.title, p.body].filter(Boolean).join('\n\n'),
+      displayUrl: null // this actor doesn't return post images; text-only for now
+    }));
 }
 
 // ---- Step 2: ask Claude to extract a structured book mention, if any ----
@@ -346,8 +395,10 @@ async function main() {
     }
   }
 
-  const posts = await scrapeInstagram();
-  console.log(`Got ${posts.length} posts. Extracting book mentions (text first, images only when needed, ${CONCURRENCY} at a time)...`);
+  const instagramPosts = await scrapeInstagram();
+  const redditPosts = await scrapeReddit();
+  const posts = [...instagramPosts, ...redditPosts];
+  console.log(`Got ${instagramPosts.length} Instagram post(s) and ${redditPosts.length} Reddit post(s) \u2014 ${posts.length} total. Extracting book mentions (text first, images only when needed, ${CONCURRENCY} at a time)...`);
 
   const results = await processWithConcurrency(posts, CONCURRENCY, extractBookMention, (completed, total, entry) => {
     if (entry) {
