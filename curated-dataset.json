@@ -4,8 +4,9 @@
     "info": "Contemporary paranormal romance with historical fiction elements. Slow burn. Features characters Iris and Henry discovering connections stronger than death in a house full of secrets. Also: Contemporary with historical fiction elements. Paranormal romance slow burn featuring Iris and Henry, centered on connections stronger than death. Also: Paranormal contemporary romance with historical fiction elements, slow burn, featuring characters Iris and Henry; releasing 2027."
   },
   {
-    "title": "Howling on the Bluff & Monsters of Moonfall Isle",
-    "info": "Paranormal romance with creature features and magical worldbuilding. Atmospheric, dark vibe with fantasy elements."
+    "title": "Howling on the Bluff",
+    "info": "Cozy, spicy monster romance (Monsters of Moonfall Isle series). Woman inherits a cottage on a hidden island and is rescued by a shapeshifting faehound.",
+    "author": "Veronica Samek"
   },
   {
     "title": "Catch Me Before Sunset",
@@ -26,11 +27,6 @@
     "title": "Rever (The Reverie Series #3)",
     "author": "Joanne Carne",
     "info": "Ancient Welsh vampire x FBI director. Fated mates, forced proximity, abduction, age gap, dark themes, blood sharing, open door romance."
-  },
-  {
-    "title": "Big Boys of Motham City series",
-    "author": "Lilith Stone",
-    "info": "Monster romance series with paranormal, spicy romantasy elements. Includes The Gargoyle Grinch, Mail-Order Minotaur, The Billionaire Orc, Fake Dating the Dragon."
   },
   {
     "title": "The Forbidden Lycan Princess",
@@ -1692,10 +1688,6 @@
     "info": "Dark fantasy romance with healer protagonist, secret royalty, loyalty themes, empath abilities, enemies-to-lovers tension. First in trilogy."
   },
   {
-    "title": "My Pantone Birth Chart - Book Recs Editions",
-    "info": "Social media trend matching astrology birth chart to book recommendations. Shows multiple books including 'Across the Vanishing Sky' by Catherine Cowles, 'Cowboy Casual' by Holly Renee, 'Bites of the Starling' by Devney Perry, 'Light Wielder' by Rachel Schneid, and 'Hunted by the Fae King's Shadow' by Shaylin Gandhi."
-  },
-  {
     "title": "Midnight Bride",
     "author": "Jane Austen",
     "info": "Classic Austen romance featuring custom embroidered corner bookmark; cottagecore aesthetic appeal with handmade details."
@@ -2954,12 +2946,7 @@
   {
     "title": "The Lord of the Rings",
     "author": "J.R.R. Tolkien",
-    "info": "Box set unboxing. New bookstagram account launch featuring classic fantasy."
-  },
-  {
-    "title": "The Lord of the Rings",
-    "author": "J. R. R. Tolkien",
-    "info": "Review essay examining Tolkien's world-building, style, and character development."
+    "info": "Box set unboxing. New bookstagram account launch featuring classic fantasy. Also: Review essay examining Tolkien's world-building, style, and character development."
   },
   {
     "title": "The Mysterious Case of the Missing House",
@@ -4112,5 +4099,20 @@
   {
     "title": "Theo of Golden",
     "info": "Fantasy audiobook. Reader finds it self-indulgent and predictable early on; unsure if emotional tone continues throughout."
+  },
+  {
+    "title": "Mail Order Minotaur",
+    "author": "Lilith Stone",
+    "info": "Motham City Monsters Book 1. Sweet, steamy monster romance."
+  },
+  {
+    "title": "The Gargoyle Grinch",
+    "author": "Lilith Stone",
+    "info": "Motham City Monsters Book 2. Cozy Christmas monster romance."
+  },
+  {
+    "title": "The Billionaire Orc",
+    "author": "Lilith Stone",
+    "info": "Motham City Monsters series. Opposites-attract monster romance."
   }
 ]
