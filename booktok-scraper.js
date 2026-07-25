@@ -54,7 +54,7 @@ if (!APIFY_TOKEN || !ANTHROPIC_API_KEY) {
 
 // ---- Configure what to scrape here ----
 const HASHTAGS = [
-  'booktok', 'bookstagram', 'bookrecommendations', 'romantasy', 'romanticfantasy', 'spicybooks', 'fantasyromancebooks', 'books', 'booksta', 'reverseharem', 'romantasybooktok', 'romantasybookrecs', 'romantasyreader', 'bookrecommendationsplease', 'romancebooks', 'romancebookstagrammer', 'romancebooksofinstagram', 'romancebookseries', 'romancebooksofig', 'romancebookstore', 'bookrecs', 'paranormalromance', 'paranormalromancebooks', 'scifiromance', 'scifiromancebooks', 'fantasybooks', 'fantasybookstagram', 'book', 'bookworm', 'booklover', 'bookish', 'bookaddict', 'booknerd', 'bibliophile', 'readersofinstagram', 'booksofinstagram', 'bookcommunity', 'bookreview', 'currentlyreading', 'tbr', 'whattoread', 'bookclub', 'darkromance', 'spicybooktok', 'smutbooks', 'bookhaul', 'bookishfeatures', 'whattoreadnext', 'tbrpile', 'romcombooks', 'romcomreads', 'fantasyromcom', 'fantasyreader', 'fantasybookrecs', 'dystopian', 'dystopianbooks', 'reader', 'booksthatmademecry', 'darkacademia', 'bookstagrambooks', 'bookishthoughts', 'mustreadbooks',
+  'booktok', 'bookstagram', 'bookrecommendations', 'romantasy', 'romanticfantasy', 'spicybooks', 'fantasyromancebooks', 'books', 'booksta', 'reverseharem', 'romantasybooktok', 'romantasybookrecs', 'romantasyreader', 'bookrecommendationsplease', 'romancebooks', 'romancebookstagrammer', 'romancebooksofinstagram', 'romancebookseries', 'romancebooksofig', 'romancebookstore', 'bookrecs', 'paranormalromance', 'paranormalromancebooks', 'scifiromance', 'scifiromancebooks', 'fantasybooks', 'fantasybookstagram', 'book', 'bookworm', 'booklover', 'bookish', 'bookaddict', 'booknerd', 'bibliophile', 'readersofinstagram', 'booksofinstagram', 'bookcommunity', 'bookreview', 'currentlyreading', 'tbr', 'whattoread', 'bookclub', 'darkromance', 'spicybooktok', 'smutbooks', 'bookhaul', 'bookishfeatures', 'whattoreadnext', 'tbrpile', 'romcombooks', 'romcomreads', 'fantasyromcom', 'fantasyreader', 'fantasybookrecs', 'dystopian', 'dystopianbooks', 'reader', 'booksthatmademecry', 'darkacademia', 'bookstagrambooks', 'bookishthoughts', 'mustreadbooks', 'romantasybookstagram'
   // add more hashtags here, no # symbol
 ];
 
@@ -73,9 +73,9 @@ const SUBREDDITS = [
   'thrillerbooks', 'weirdgirlliterature', 'readingsuggestions', 'mysterybooks',
 ];
 const ENABLE_REDDIT = true; // set to false to skip Reddit and only scrape Instagram
-const REDDIT_POSTS_PER_SUB = 2; // TEMPORARY for testing \u2014 bump back up to 10+ before real runs
+const REDDIT_POSTS_PER_SUB = 10; // posts to pull per subreddit
 
-const RESULTS_PER_TARGET = 2; // TEMPORARY for testing \u2014 bump back up to 10+ before real runs
+const RESULTS_PER_TARGET = 10; // posts to pull per hashtag/account
 const MAX_IMAGES_PER_POST = 3; // cap on images sent to Claude vision per post (cost control)
 const CONCURRENCY = 5; // how many posts to process at once \u2014 higher is faster but risks API rate limits
 
@@ -296,6 +296,32 @@ function dedupeEntries(entries) {
 // Prefers whichever copy has an author, merges the info text from both.
 let titleCollisionCount = 0;
 
+// Strips periods and collapses whitespace so "J.R.R. Tolkien" and
+// "J. R. R. Tolkien" are recognized as the same author \u2014 pure formatting
+// differences shouldn't cause a false "different book" classification.
+function normalizeAuthorForCompare(author) {
+  return (author || '').toLowerCase().replace(/[.\s]/g, '').trim();
+}
+
+// Very cheap edit-distance check, just for flagging \u2014 not for auto-merging.
+// Two author strings that are close but not identical after normalization
+// (like "Perri Torrani" vs "Perry Torani") are likely the same person with a
+// typo, but merging automatically risks silently conflating two genuinely
+// different authors, so this only surfaces them for a human to check.
+function levenshteinWithinTwo(a, b) {
+  if (Math.abs(a.length - b.length) > 2) return false;
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  return dp[a.length][b.length] <= 2 && dp[a.length][b.length] > 0;
+}
+
+let similarAuthorFlags = [];
+
 function mergeByTitle(entries) {
   const byTitle = new Map();
   for (const e of entries) {
@@ -310,8 +336,17 @@ function mergeByTitle(entries) {
       merged.push(group[0]);
       continue;
     }
-    const distinctAuthors = new Set(group.filter(g => g.author).map(g => g.author.toLowerCase().trim()));
+    const distinctAuthors = new Set(group.filter(g => g.author).map(g => normalizeAuthorForCompare(g.author)));
     if (distinctAuthors.size > 1) {
+      // Flag near-miss spellings for a human to check, without auto-merging.
+      const authorList = Array.from(distinctAuthors);
+      for (let i = 0; i < authorList.length; i++) {
+        for (let j = i + 1; j < authorList.length; j++) {
+          if (levenshteinWithinTwo(authorList[i], authorList[j])) {
+            similarAuthorFlags.push(`"${group[0].title}": "${authorList[i]}" vs "${authorList[j]}"`);
+          }
+        }
+      }
       // Same title, but genuinely different named authors \u2014 almost certainly
       // different books that happen to share a title (like "Good Neighbors",
       // which matches at least 5 unrelated real books). Keep them separate
@@ -333,6 +368,51 @@ function mergeByTitle(entries) {
     merged.push(base);
   }
   return merged;
+}
+
+// Manually-verified corrections for specific entries that keep reappearing
+// because the same source posts get re-scraped on every run. Add to this list
+// whenever a flagged entry gets researched and confirmed \u2014 that verification
+// then survives future runs instead of needing to be redone by hand each time.
+// Match keys are lowercase, trimmed titles.
+const KNOWN_CORRECTIONS = {
+  remove: [
+    'my pantone birth chart - book recs editions', // not a book, a social trend post
+    'big boys of motham city series', // fake title; real books added separately below
+  ],
+  rename: {
+    'howling on the bluff & monsters of moonfall isle': {
+      title: 'Howling on the Bluff',
+      author: 'Veronica Samek',
+      info: 'Cozy, spicy monster romance (Monsters of Moonfall Isle series). Woman inherits a cottage on a hidden island and is rescued by a shapeshifting faehound.'
+    },
+  },
+  // Real books recovered from entries that got removed above.
+  add: [
+    { title: 'Mail Order Minotaur', author: 'Lilith Stone', info: 'Motham City Monsters Book 1. Sweet, steamy monster romance \u2014 human tour guide falls for a minotaur, fated mates, low angst.' },
+    { title: 'The Gargoyle Grinch', author: 'Lilith Stone', info: 'Motham City Monsters Book 2. Cozy Christmas monster romance between a grumpy gargoyle security guard and a warm-hearted human.' },
+    { title: 'The Billionaire Orc', author: 'Lilith Stone', info: 'Motham City Monsters series. A wealthy orc and a human realtor, opposites-attract monster romance.' },
+  ],
+};
+
+function applyKnownCorrections(entries) {
+  const removeSet = new Set(KNOWN_CORRECTIONS.remove.map(t => t.toLowerCase().trim()));
+  let corrected = entries
+    .filter(e => !removeSet.has(e.title.toLowerCase().trim()))
+    .map(e => {
+      const fix = KNOWN_CORRECTIONS.rename[e.title.toLowerCase().trim()];
+      return fix ? { ...e, ...fix } : e;
+    });
+
+  const existingKeys = new Set(corrected.map(e => (e.title + '|' + (e.author || '')).toLowerCase().trim()));
+  for (const toAdd of KNOWN_CORRECTIONS.add) {
+    const key = (toAdd.title + '|' + (toAdd.author || '')).toLowerCase().trim();
+    if (!existingKeys.has(key)) {
+      corrected.push(toAdd);
+      existingKeys.add(key);
+    }
+  }
+  return corrected;
 }
 
 // Flags (doesn't auto-fix) entries that look like they might bundle multiple
@@ -421,10 +501,14 @@ async function main() {
   // and flagging (not auto-fixing) entries that look like they might bundle
   // multiple books under one made-up title.
   const combined = dedupeEntries([...existing, ...newEntries]);
-  const merged = mergeByTitle(combined);
+  const merged = applyKnownCorrections(mergeByTitle(combined));
   flagSuspiciousEntries(merged);
   if (titleCollisionCount > 0) {
     console.log(`\n\u26a0 ${titleCollisionCount} title(s) matched an existing entry but had a different named author \u2014 kept as separate entries instead of merging, since they're likely different books.`);
+  }
+  if (similarAuthorFlags.length > 0) {
+    console.log(`\n\u26a0 ${similarAuthorFlags.length} case(s) of very similar (but not identical) author spellings on the same title \u2014 possibly the same person with a typo, worth a manual look rather than auto-merged:`);
+    similarAuthorFlags.forEach(f => console.log(`  - ${f}`));
   }
 
   console.log(`\nDataset now has ${merged.length} unique book mention(s) total (was ${existing.length}, added up to ${newEntries.length} today, after merging).`);
