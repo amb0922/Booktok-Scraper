@@ -1,0 +1,39 @@
+name: Weekly Social Scrape (Instagram + Reddit)
+
+# Runs weekly, and can also be triggered manually from the "Actions" tab.
+# Goodreads is explicitly turned off for this run \u2014 it has its own
+# separate monthly workflow.
+on:
+  schedule:
+    - cron: '0 6 * * 1'   # 6:00 AM UTC every Monday \u2014 change the day-of-week number (0=Sun..6=Sat) or hour as needed
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run scraper (Instagram + Reddit only)
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ENABLE_GOODREADS: 'false'
+        run: node booktok-scraper.js
+
+      - name: Commit updated dataset (only if it actually changed)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add curated-dataset.json
+          git diff --staged --quiet || git commit -m "Auto-update curated dataset (weekly social) $(date -u +%Y-%m-%d)"
+          git push
