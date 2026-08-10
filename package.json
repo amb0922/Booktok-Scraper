@@ -1,0 +1,11 @@
+{
+  "name": "booktok-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Scrapes Instagram hashtags/accounts via Apify and extracts structured book mentions with Claude.",
+  "main": "booktok-scraper.js",
+  "scripts": {
+    "start": "node booktok-scraper.js"
+  }
+}
