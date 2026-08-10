@@ -599,6 +599,7 @@ const KNOWN_CORRECTIONS = {
     'my pantone birth chart - book recs editions', // not a book, a social trend post
     'big boys of motham city series', // fake title; real books added separately below
     "kat vroman's snowed in trope bundle: volume 1", // fake umbrella title; real book added separately below
+    'mpwg law firm: the complete series', // fake umbrella title; the 4 real books added separately below
   ],
   rename: {
     'howling on the bluff & monsters of moonfall isle': {
@@ -618,6 +619,10 @@ const KNOWN_CORRECTIONS = {
     { title: 'The Gargoyle Grinch', author: 'Lilith Stone', info: 'Motham City Monsters Book 2. Cozy Christmas monster romance between a grumpy gargoyle security guard and a warm-hearted human.' },
     { title: 'The Billionaire Orc', author: 'Lilith Stone', info: 'Motham City Monsters series. A wealthy orc and a human realtor, opposites-attract monster romance.' },
     { title: 'Snowed in with the Mountain Man Professor', author: 'Kat Vroman', info: 'Paranormal romance novelette, enemies-to-lovers, instalove. A secretly wealthy romance novelist and a judgmental cedar waxwing shifter professor are trapped together by a snowstorm.' },
+    { title: 'Objection (MPWG Law Firm, #1)', author: 'B. Love', info: 'Black romance, first in the MPWG Law Firm series about lawyers at a Memphis firm.' },
+    { title: 'Inadmissible (MPWG Law Firm, #2)', author: 'B. Love', info: 'Black romance, MPWG Law Firm #2. Taj, recovering from heartbreak, meets the attentive and patient Tristan.' },
+    { title: 'Plea (MPWG Law Firm, #3)', author: 'B. Love', info: 'Black romance, MPWG Law Firm #3.' },
+    { title: 'Trials & Tribulations (MPWG Law Firm, #4)', author: 'B. Love', info: 'Black romance, MPWG Law Firm #4. Friends-to-lovers \u2014 Navy questions her relationship with Ian as her decade-long friendship with Zander shifts.' },
   ],
 };
 
