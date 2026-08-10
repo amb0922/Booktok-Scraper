@@ -57,7 +57,9 @@ if (!APIFY_TOKEN || !ANTHROPIC_API_KEY) {
 
 // ---- Configure what to scrape here ----
 const HASHTAGS = [
-  'booktok', 'bookstagram', 'bookrecommendations', 'romantasy', 'romanticfantasy', 'spicybooks', 'fantasyromancebooks', 'books', 'booksta', 'reverseharem', 'romantasybooktok', 'romantasybookrecs', 'romantasyreader', 'bookrecommendationsplease', 'romancebooks', 'romancebookstagrammer', 'romancebooksofinstagram', 'romancebookseries', 'romancebooksofig', 'romancebookstore', 'bookrecs', 'paranormalromance', 'paranormalromancebooks', 'scifiromance', 'scifiromancebooks', 'fantasybooks', 'fantasybookstagram', 'book', 'bookworm', 'booklover', 'bookish', 'bookaddict', 'booknerd', 'bibliophile', 'readersofinstagram', 'booksofinstagram', 'bookcommunity', 'bookreview', 'currentlyreading', 'tbr', 'whattoread', 'bookclub', 'darkromance', 'spicybooktok', 'smutbooks', 'bookhaul', 'bookishfeatures', 'whattoreadnext', 'tbrpile', 'romcombooks', 'romcomreads', 'fantasyromcom', 'fantasyreader', 'fantasybookrecs', 'dystopian', 'dystopianbooks', 'reader', 'booksthatmademecry', 'darkacademia', 'bookstagrambooks', 'bookishthoughts', 'mustreadbooks', 'romantasybookstagram'
+  'booktok', 'bookstagram', 'bookrecommendations', 'romantasy', 'romanticfantasy', 'spicybooks', 'fantasyromancebooks', 'books', 'booksta', 'reverseharem', 'romantasybooktok', 'romantasybookrecs', 'romantasyreader', 'bookrecommendationsplease', 'romancebooks', 'romancebookstagrammer', 'romancebooksofinstagram', 'romancebookseries', 'romancebooksofig', 'romancebookstore', 'bookrecs', 'paranormalromance', 'paranormalromancebooks', 'scifiromance', 'scifiromancebooks', 'fantasybooks', 'fantasybookstagram', 'book', 'bookworm', 'booklover', 'bookish', 'bookaddict', 'booknerd', 'bibliophile', 'readersofinstagram', 'booksofinstagram', 'bookcommunity', 'bookreview', 'currentlyreading', 'tbr', 'whattoread', 'bookclub', 'darkromance', 'spicybooktok', 'smutbooks', 'bookhaul', 'bookishfeatures', 'whattoreadnext', 'tbrpile', 'romcombooks', 'romcomreads', 'fantasyromcom', 'fantasyreader', 'fantasybookrecs', 'dystopian', 'dystopianbooks', 'reader', 'booksthatmademecry', 'darkacademia', 'bookstagrambooks', 'bookishthoughts', 'mustreadbooks', 'romantasybookstagram',
+  // broader genres, added to expand beyond romance
+  'fantasybooktok', 'epicfantasy', 'scifibooktok', 'sciencefictionbooks', 'mysterybooktok', 'thrillerbooktok', 'cozymystery', 'horrorbooktok', 'horrorbooks', 'literaryfiction', 'yabooktok', 'yabooks', 'historicalfiction', 'nonfictionbooktok', 'nonfictionbooks', 'classicbooks', 'graphicnovels', 'mangabooktok'
   // add more hashtags here, no # symbol
 ];
 
@@ -74,6 +76,9 @@ const SUBREDDITS = [
   'suggestmeabook', 'recommend_a_book', 'bookclub', 'findabook', 'pdfbooks',
   'books', 'bookdiscussions', 'whatsthatbook', 'booksthatfeellikethis',
   'thrillerbooks', 'weirdgirlliterature', 'readingsuggestions', 'mysterybooks',
+  // broader genres, added to expand beyond romance
+  'fantasy', 'printsf', 'scifi', 'horrorlit', 'yalit', 'historicalfiction',
+  'nonfictionbooks', 'literature', 'manga', 'horror',
 ];
 // All three source toggles read from environment variables first,
 // defaulting to "on" if not set \u2014 this lets separate GitHub Actions
@@ -91,16 +96,49 @@ const REDDIT_POSTS_PER_SUB = 10; // posts to pull per subreddit
 // mixed freely.
 const ENABLE_GOODREADS = process.env.ENABLE_GOODREADS !== 'false';
 const GOODREADS_TARGETS = [
+  // Romance & romantasy (original focus)
   'romantasy', 'dark romance', 'reverse harem romance', 'paranormal romance',
   'why choose romance', 'fantasy romance', 'spicy romance books', 'enemies to lovers romance',
+  // All other major genres
+  'fantasy', 'science fiction', 'mystery', 'thriller', 'horror',
+  'historical fiction', 'literary fiction', 'young adult', 'contemporary fiction',
+  'nonfiction', 'memoir', 'biography', 'self help', 'poetry', 'graphic novels',
+  'classics', 'crime fiction', 'dystopian', 'magical realism',
 ];
 const GOODREADS_RESULTS_PER_TARGET = 10; // results per target (this actor supports up to 500)
 const GOODREADS_SCRAPE_REVIEWS = false; // book metadata only by default \u2014 review text costs more and isn't needed for recommendation data
 
 const ENABLE_INSTAGRAM = process.env.ENABLE_INSTAGRAM !== 'false';
-const RESULTS_PER_TARGET = 10; // posts to pull per hashtag/account
+const RESULTS_PER_TARGET = 2; // TEMPORARY for a focused transcription test \u2014 bump back up to 10+ afterward
 const MAX_IMAGES_PER_POST = 3; // cap on images sent to Claude vision per post (cost control)
 const CONCURRENCY = 5; // how many posts to process at once \u2014 higher is faster but risks API rate limits
+
+// Hard, platform-enforced cost ceilings per run, independent of whether the
+// actor's own internal result-limit parameter behaves correctly. Apify's
+// own documentation confirms resultsLimit-style actor parameters have real,
+// reported reliability issues (a run can scrape far more than requested).
+// maxTotalChargeUsd is enforced by Apify's platform itself as a genuine
+// billing cap, not just a request to the actor \u2014 add this to every actor
+// call as defense-in-depth, set generously above expected correct-behavior
+// cost but well below what a runaway run could otherwise reach.
+const INSTAGRAM_MAX_CHARGE_USD = 5;
+const REDDIT_MAX_CHARGE_USD = 3;
+const GOODREADS_MAX_CHARGE_USD = 3;
+const REELS_MAX_CHARGE_USD = 3; // for the separate reels-scraping Apify call
+
+// Reel audio transcription (Path C from REEL-VIDEO-SPEC.md): sends a reel's
+// separately-provided audioUrl to OpenAI's gpt-4o-transcribe, only when
+// caption-only and image-escalation extraction both come back inconclusive.
+// OpenAI's API has no platform-enforced cost cap like Apify's
+// maxTotalChargeUsd, so these limits are enforced in code instead \u2014 the
+// same lesson from the Instagram billing incident, applied to a vendor that
+// doesn't offer the safety net natively.
+const ENABLE_REEL_TRANSCRIPTION = process.env.ENABLE_REEL_TRANSCRIPTION !== 'false';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const TRANSCRIPTION_MODEL = 'gpt-4o-transcribe';
+const MAX_REEL_DURATION_SECONDS = 180; // skip transcription for reels longer than this
+const MAX_REELS_TO_TRANSCRIBE_PER_RUN = 30; // hard ceiling regardless of how many would otherwise qualify
+const REELS_PER_TARGET = 2; // TEMPORARY for a focused transcription test \u2014 bump back up to 5 afterward
 
 // ---- Step 1: scrape via Apify's Instagram Scraper actor ----
 async function scrapeInstagram() {
@@ -117,7 +155,7 @@ async function scrapeInstagram() {
   console.log(`Scraping ${directUrls.length} target(s) via Apify...`);
 
   const res = await fetch(
-    `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${APIFY_TOKEN}`,
+    `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${APIFY_TOKEN}&maxTotalChargeUsd=${INSTAGRAM_MAX_CHARGE_USD}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -136,6 +174,38 @@ async function scrapeInstagram() {
   return res.json();
 }
 
+// ---- Step 1a-2: scrape Reels specifically (separate content type from posts) ----
+// resultsType: 'posts' does NOT return reel-specific fields like audioUrl or
+// videoDuration \u2014 reels are a genuinely distinct category in this actor's
+// schema, confirmed against its own docs. This is a separate, additive call,
+// not a replacement for the posts scrape above.
+async function scrapeInstagramReels() {
+  if (!ENABLE_INSTAGRAM || !ENABLE_REEL_TRANSCRIPTION) return [];
+  const directUrls = HASHTAGS.map(h => `https://www.instagram.com/explore/tags/${h}/`);
+  if (!directUrls.length) return [];
+
+  console.log(`Scraping ${directUrls.length} target(s) for Reels via Apify...`);
+
+  const res = await fetch(
+    `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${APIFY_TOKEN}&maxTotalChargeUsd=${REELS_MAX_CHARGE_USD}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        directUrls,
+        resultsType: 'reels',
+        resultsLimit: REELS_PER_TARGET
+      })
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Apify Reels request failed: ${res.status} ${await res.text()}`);
+  }
+
+  return res.json();
+}
+
 // ---- Step 1b: scrape via Apify's Reddit Scraper actor (harshmaur/reddit-scraper) ----
 // Normalizes Reddit posts into the same { caption, displayUrl } shape the
 // extraction step already expects, so both sources share one pipeline.
@@ -146,7 +216,7 @@ async function scrapeReddit() {
   console.log(`Scraping ${SUBREDDITS.length} subreddit(s) via Apify...`);
 
   const res = await fetch(
-    `https://api.apify.com/v2/acts/harshmaur~reddit-scraper/run-sync-get-dataset-items?token=${APIFY_TOKEN}`,
+    `https://api.apify.com/v2/acts/harshmaur~reddit-scraper/run-sync-get-dataset-items?token=${APIFY_TOKEN}&maxTotalChargeUsd=${REDDIT_MAX_CHARGE_USD}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -203,7 +273,7 @@ async function scrapeGoodreads() {
   console.log(`Scraping ${GOODREADS_TARGETS.length} Goodreads target(s) via Apify...`);
 
   const res = await fetch(
-    `https://api.apify.com/v2/acts/khadinakbar~goodreads-all-in-one-scraper/run-sync-get-dataset-items?token=${APIFY_TOKEN}`,
+    `https://api.apify.com/v2/acts/khadinakbar~goodreads-all-in-one-scraper/run-sync-get-dataset-items?token=${APIFY_TOKEN}&maxTotalChargeUsd=${GOODREADS_MAX_CHARGE_USD}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -331,6 +401,52 @@ async function callExtraction(caption, images) {
   return null;
 }
 
+let transcriptionCount = 0;
+let reelSkipReasons = { disabled: 0, noKey: 0, badDuration: 0, tooLong: 0 };
+
+// Sends a reel's separately-provided audio track to OpenAI's
+// gpt-4o-transcribe. Uses the .m4a filename deliberately, not .mp4 - both
+// are valid MPEG-4 containers, but real, documented reports exist of
+// Whisper-family models producing badly wrong transcriptions specifically
+// when a file is labeled .mp4, resolved by relabeling the same bytes as
+// .m4a. Never throws; a transcription failure should never block the
+// pipeline, just fall through to no transcript for that post.
+async function transcribeReelAudio(audioUrl) {
+  if (!OPENAI_API_KEY) return null;
+  if (transcriptionCount >= MAX_REELS_TO_TRANSCRIBE_PER_RUN) return null;
+
+  try {
+    const audioRes = await fetch(audioUrl);
+    if (!audioRes.ok) return null;
+    const buffer = Buffer.from(await audioRes.arrayBuffer());
+    if (buffer.length > 25 * 1024 * 1024) {
+      console.log('  (skipping transcription \u2014 audio file exceeds OpenAI\u2019s 25MB limit)');
+      return null;
+    }
+
+    const formData = new FormData();
+    formData.append('file', new Blob([buffer], { type: 'audio/mp4' }), 'reel-audio.m4a');
+    formData.append('model', TRANSCRIPTION_MODEL);
+
+    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+      body: formData
+    });
+
+    transcriptionCount++;
+
+    if (!res.ok) {
+      console.log(`  (transcription request failed with status ${res.status}, continuing without it)`);
+      return null;
+    }
+    const data = await res.json();
+    return data.text || null;
+  } catch (err) {
+    return null;
+  }
+}
+
 async function extractBookMention(post) {
   const caption = (post.caption || '').slice(0, 1500); // keep each request small
 
@@ -341,13 +457,40 @@ async function extractBookMention(post) {
   // Pass 2: caption alone didn't resolve it \u2014 escalate to image analysis.
   // For a video post, the only image available is its thumbnail frame.
   const imageUrls = collectImageUrls(post).slice(0, MAX_IMAGES_PER_POST);
-  if (!imageUrls.length) return null;
+  if (imageUrls.length) {
+    const downloaded = await Promise.all(imageUrls.map(downloadAsBase64Image));
+    const images = downloaded.filter(Boolean);
+    if (images.length) {
+      const imageResult = await callExtraction(caption, images);
+      if (imageResult) return imageResult;
+    }
+  }
 
-  const downloaded = await Promise.all(imageUrls.map(downloadAsBase64Image));
-  const images = downloaded.filter(Boolean);
-  if (!images.length) return null;
+  // Pass 3: still nothing \u2014 escalate to reel audio transcription, only for
+  // actual reels with a usable duration, and only up to the per-run cap.
+  if (ENABLE_REEL_TRANSCRIPTION && OPENAI_API_KEY && post.audioUrl && typeof post.videoDuration === 'number' && post.videoDuration <= MAX_REEL_DURATION_SECONDS) {
+    const transcript = await transcribeReelAudio(post.audioUrl);
+    if (transcript) {
+      const combinedCaption = [caption, 'Video narration: ' + transcript].filter(Boolean).join('\n\n');
+      const transcriptResult = await callExtraction(combinedCaption, []);
+      if (transcriptResult) return transcriptResult;
+    }
+  } else if (post.audioUrl) {
+    // This IS a reel (has audioUrl) but didn't qualify for transcription \u2014
+    // log exactly why, so it's visible whether transcription is correctly
+    // being skipped or silently misconfigured, instead of staying ambiguous.
+    if (!ENABLE_REEL_TRANSCRIPTION) {
+      reelSkipReasons.disabled++;
+    } else if (!OPENAI_API_KEY) {
+      reelSkipReasons.noKey++;
+    } else if (typeof post.videoDuration !== 'number') {
+      reelSkipReasons.badDuration++;
+    } else if (post.videoDuration > MAX_REEL_DURATION_SECONDS) {
+      reelSkipReasons.tooLong++;
+    }
+  }
 
-  return callExtraction(caption, images);
+  return null;
 }
 
 // ---- Step 3: merge duplicate mentions of the same book into one entry ----
@@ -455,6 +598,7 @@ const KNOWN_CORRECTIONS = {
   remove: [
     'my pantone birth chart - book recs editions', // not a book, a social trend post
     'big boys of motham city series', // fake title; real books added separately below
+    "kat vroman's snowed in trope bundle: volume 1", // fake umbrella title; real book added separately below
   ],
   rename: {
     'howling on the bluff & monsters of moonfall isle': {
@@ -473,6 +617,7 @@ const KNOWN_CORRECTIONS = {
     { title: 'Mail Order Minotaur', author: 'Lilith Stone', info: 'Motham City Monsters Book 1. Sweet, steamy monster romance \u2014 human tour guide falls for a minotaur, fated mates, low angst.' },
     { title: 'The Gargoyle Grinch', author: 'Lilith Stone', info: 'Motham City Monsters Book 2. Cozy Christmas monster romance between a grumpy gargoyle security guard and a warm-hearted human.' },
     { title: 'The Billionaire Orc', author: 'Lilith Stone', info: 'Motham City Monsters series. A wealthy orc and a human realtor, opposites-attract monster romance.' },
+    { title: 'Snowed in with the Mountain Man Professor', author: 'Kat Vroman', info: 'Paranormal romance novelette, enemies-to-lovers, instalove. A secretly wealthy romance novelist and a judgmental cedar waxwing shifter professor are trapped together by a snowstorm.' },
   ],
 };
 
@@ -571,9 +716,10 @@ async function main() {
   }
 
   const instagramPosts = await scrapeInstagram();
+  const reelPosts = await scrapeInstagramReels();
   const redditPosts = await scrapeReddit();
-  const posts = [...instagramPosts, ...redditPosts];
-  console.log(`Got ${instagramPosts.length} Instagram post(s) and ${redditPosts.length} Reddit post(s) \u2014 ${posts.length} total. Extracting book mentions (text first, images only when needed, ${CONCURRENCY} at a time)...`);
+  const posts = [...instagramPosts, ...reelPosts, ...redditPosts];
+  console.log(`Got ${instagramPosts.length} Instagram post(s), ${reelPosts.length} Reel(s), and ${redditPosts.length} Reddit post(s) \u2014 ${posts.length} total. Extracting book mentions (text first, images/transcription only when needed, ${CONCURRENCY} at a time)...`);
 
   const results = await processWithConcurrency(posts, CONCURRENCY, extractBookMention, (completed, total, entry) => {
     if (entry) {
@@ -589,6 +735,15 @@ async function main() {
   }
   if (parseErrorCount > 0) {
     console.log(`\u26a0 ${parseErrorCount} response(s) couldn't be parsed as JSON \u2014 see warnings above.`);
+  }
+  if (transcriptionCount > 0) {
+    console.log(`\uD83C\uDF99\uFE0F Transcribed audio for ${transcriptionCount} reel(s) this run (cap: ${MAX_REELS_TO_TRANSCRIBE_PER_RUN}).`);
+  }
+  const totalReelsReachedTier3 = transcriptionCount + reelSkipReasons.disabled + reelSkipReasons.noKey + reelSkipReasons.badDuration + reelSkipReasons.tooLong;
+  if (totalReelsReachedTier3 === 0) {
+    console.log('\uD83C\uDF99\uFE0F No reel reached the transcription tier this run \u2014 every reel that had audioUrl succeeded on caption or image alone first. (This is a good outcome, not a bug \u2014 transcription is a fallback, not the primary path.)');
+  } else if (transcriptionCount === 0) {
+    console.log(`\u26a0 ${totalReelsReachedTier3} reel(s) reached the transcription tier but NONE actually got transcribed \u2014 breakdown: disabled=${reelSkipReasons.disabled}, no OpenAI key=${reelSkipReasons.noKey}, missing duration=${reelSkipReasons.badDuration}, too long=${reelSkipReasons.tooLong}. This suggests a real configuration issue, not just "transcription wasn't needed."`);
   }
 
   const goodreadsEntries = await scrapeGoodreads();
